@@ -1,121 +1,96 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { Header } from './components/Header'
+import { Sidebar } from './components/Sidebar'
+import { VideoEmptyState } from './components/VideoEmptyState'
+import { VideoList, MOCK_VIDEOS } from './components/VideoList'
+import { VideoDetail } from './components/VideoDetail'
+import { ChannelPage } from './components/ChannelPage'
+import type { Video } from './components/VideoCard'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activeTab, setActiveTab] = useState('home')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
+  const [selectedChannel, setSelectedChannel] = useState<{ name: string; avatar: string } | null>(null)
+
+  // Dynamic titles and messages based on which sidebar option is active
+  const emptyStates: Record<string, { title: string; message: string }> = {
+    home: {
+      title: 'No videos available',
+      message: 'There are no videos here available. Please try to search some thing else.',
+    },
+    liked: {
+      title: 'No liked videos',
+      message: 'You haven\'t liked any videos yet. Start exploring and like some videos!',
+    },
+    history: {
+      title: 'No history found',
+      message: 'Videos you watch will appear here. Start watching!',
+    },
+    content: {
+      title: 'No content uploaded',
+      message: 'You have not uploaded any videos yet. Start creating and share your first video!',
+    },
+    collections: {
+      title: 'No collections available',
+      message: 'Create collections to group and organize your favorite videos.',
+    },
+    subscribers: {
+      title: 'No subscribers',
+      message: 'You don\'t have any subscribers yet. Keep creating great content to attract viewers!',
+    },
+  }
+
+  const currentEmptyState = emptyStates[activeTab] || emptyStates.home
+
+  const handleTabSelect = (tabId: string) => {
+    setActiveTab(tabId)
+    setSelectedVideo(null) // Reset active video when navigating to other tabs
+    setSelectedChannel(null) // Reset active channel when navigating to other tabs
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="h-screen overflow-y-auto bg-[#121212] text-white flex flex-col font-sans select-none">
+      {/* Header component */}
+      <Header onSearch={setSearchQuery} />
 
-      <div className="ticks"></div>
+      {/* Main Layout Area */}
+      <div className="flex flex-1 min-h-[calc(100vh-66px)] sm:min-h-[calc(100vh-82px)] relative">
+        {/* Sidebar component */}
+        <Sidebar activeId={activeTab} onSelect={handleTabSelect} />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        {/* Content area */}
+        <main className="flex-grow flex flex-col bg-[#121212] overflow-hidden">
+          {selectedChannel ? (
+            <ChannelPage 
+              channelName={selectedChannel.name}
+              channelAvatar={selectedChannel.avatar}
+              onBack={() => setSelectedChannel(null)}
+              onSelectVideo={setSelectedVideo}
+            />
+          ) : selectedVideo ? (
+            <VideoDetail 
+              video={selectedVideo}
+              allVideos={MOCK_VIDEOS}
+              onBack={() => setSelectedVideo(null)}
+              onSelectVideo={setSelectedVideo}
+              onSelectChannel={setSelectedChannel}
+            />
+          ) : activeTab === 'home' ? (
+            <VideoList 
+              searchQuery={searchQuery} 
+              onSelectVideo={setSelectedVideo} 
+              onSelectChannel={setSelectedChannel}
+            />
+          ) : (
+            <VideoEmptyState 
+              title={currentEmptyState.title} 
+              message={currentEmptyState.message} 
+            />
+          )}
+        </main>
+      </div>
+    </div>
   )
 }
 
