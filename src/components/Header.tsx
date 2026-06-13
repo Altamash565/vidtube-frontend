@@ -2,11 +2,24 @@ import React, { useState } from 'react'
 
 export interface HeaderProps {
   onSearch?: (query: string) => void
+  isLoggedIn?: boolean
+  userEmail?: string | null
+  onLoginClick?: () => void
+  onSignupClick?: () => void
+  onLogout?: () => void
 }
 
-export const Header: React.FC<HeaderProps> = ({ onSearch }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  onSearch,
+  isLoggedIn = false,
+  userEmail = null,
+  onLoginClick,
+  onSignupClick,
+  onLogout
+}) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value)
@@ -139,14 +152,65 @@ export const Header: React.FC<HeaderProps> = ({ onSearch }) => {
           </ul>
 
           {/* Login/Sign Up (Bottom on Mobile / Right aligned on Desktop) */}
-          <div className="mb-8 mt-auto flex w-full flex-wrap gap-4 px-4 sm:mb-0 sm:mt-0 sm:items-center sm:px-0">
-            <button className="w-full bg-[#383737] px-3 py-2 hover:bg-[#4f4e4e] sm:w-auto sm:bg-transparent">
-              Log in
-            </button>
-            <button className="mr-1 w-full bg-[#ae7aff] px-3 py-2 text-center font-bold text-black shadow-[5px_5px_0px_0px_#4f4e4e] transition-all duration-150 ease-in-out active:translate-x-[5px] active:translate-y-[5px] active:shadow-[0px_0px_0px_0px_#4f4e4e] sm:w-auto">
-              Sign up
-            </button>
-          </div>
+          {isLoggedIn ? (
+            <div className="mb-8 mt-auto flex w-full flex-col sm:flex-row gap-4 px-4 sm:mb-0 sm:mt-0 sm:items-center sm:px-0 sm:w-auto">
+              {/* Mobile Info View */}
+              <div className="flex flex-col gap-1 sm:hidden border-b border-neutral-850 pb-4 w-full">
+                <p className="text-xs text-neutral-400 font-medium">Logged in as</p>
+                <p className="text-sm text-white font-semibold truncate max-w-[200px]" title={userEmail || ''}>{userEmail}</p>
+                <button 
+                  onClick={onLogout}
+                  className="mt-3 w-full bg-neutral-900 border border-neutral-850 text-red-400 hover:text-red-300 font-bold px-3 py-2 text-sm rounded cursor-pointer transition-colors"
+                >
+                  Log out
+                </button>
+              </div>
+
+              {/* Desktop Avatar Dropdown View */}
+              <div className="hidden sm:block relative">
+                <button 
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-[#ae7aff] text-black font-bold text-lg border-2 border-transparent hover:border-white transition-all cursor-pointer shadow-md"
+                  aria-label="User menu"
+                >
+                  {userEmail ? userEmail.charAt(0).toUpperCase() : 'U'}
+                </button>
+
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2.5 w-56 rounded-xl border border-neutral-800 bg-[#161616] p-3.5 shadow-2xl z-[60] text-left">
+                    <p className="text-xs text-neutral-400 font-medium mb-0.5">Logged in as</p>
+                    <p className="text-sm text-white font-semibold truncate mb-3 border-b border-neutral-800 pb-2.5" title={userEmail || ''}>
+                      {userEmail}
+                    </p>
+                    <button 
+                      onClick={() => {
+                        setIsDropdownOpen(false)
+                        if (onLogout) onLogout()
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-neutral-900 rounded-lg transition-colors font-semibold cursor-pointer"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="mb-8 mt-auto flex w-full flex-wrap gap-4 px-4 sm:mb-0 sm:mt-0 sm:items-center sm:px-0">
+              <button 
+                onClick={onLoginClick}
+                className="w-full bg-[#383737] px-3 py-2 hover:bg-[#4f4e4e] sm:w-auto sm:bg-transparent cursor-pointer"
+              >
+                Log in
+              </button>
+              <button 
+                onClick={onSignupClick}
+                className="mr-1 w-full bg-[#ae7aff] px-3 py-2 text-center font-bold text-black shadow-[5px_5px_0px_0px_#4f4e4e] transition-all duration-150 ease-in-out active:translate-x-[5px] active:translate-y-[5px] active:shadow-[0px_0px_0px_0px_#4f4e4e] sm:w-auto cursor-pointer"
+              >
+                Sign up
+              </button>
+            </div>
+          )}
         </div>
       </nav>
     </header>

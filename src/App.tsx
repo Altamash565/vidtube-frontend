@@ -5,6 +5,8 @@ import { VideoEmptyState } from './components/VideoEmptyState'
 import { VideoList, MOCK_VIDEOS } from './components/VideoList'
 import { VideoDetail } from './components/VideoDetail'
 import { ChannelPage } from './components/ChannelPage'
+import { Login } from './components/Login'
+import { Register } from './components/Register'
 import type { Video } from './components/VideoCard'
 
 function App() {
@@ -12,6 +14,10 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
   const [selectedChannel, setSelectedChannel] = useState<{ name: string; avatar: string } | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [showLogin, setShowLogin] = useState(false)
+  const [showRegister, setShowRegister] = useState(false)
 
   // Dynamic titles and messages based on which sidebar option is active
   const emptyStates: Record<string, { title: string; message: string }> = {
@@ -52,7 +58,17 @@ function App() {
   return (
     <div className="h-screen overflow-y-auto bg-[#121212] text-white flex flex-col font-sans select-none">
       {/* Header component */}
-      <Header onSearch={setSearchQuery} />
+      <Header 
+        onSearch={setSearchQuery} 
+        isLoggedIn={isLoggedIn}
+        userEmail={userEmail}
+        onLoginClick={() => setShowLogin(true)}
+        onSignupClick={() => setShowRegister(true)}
+        onLogout={() => {
+          setIsLoggedIn(false)
+          setUserEmail(null)
+        }}
+      />
 
       {/* Main Layout Area */}
       <div className="flex flex-1 min-h-[calc(100vh-66px)] sm:min-h-[calc(100vh-82px)] relative">
@@ -67,6 +83,7 @@ function App() {
               channelAvatar={selectedChannel.avatar}
               onBack={() => setSelectedChannel(null)}
               onSelectVideo={setSelectedVideo}
+              onSelectChannel={setSelectedChannel}
             />
           ) : selectedVideo ? (
             <VideoDetail 
@@ -90,6 +107,30 @@ function App() {
           )}
         </main>
       </div>
+
+      {/* Login Overlay */}
+      {showLogin && (
+        <Login 
+          onClose={() => setShowLogin(false)}
+          onLoginSuccess={(email) => {
+            setIsLoggedIn(true)
+            setUserEmail(email)
+            setShowLogin(false)
+          }}
+        />
+      )}
+
+      {/* Register Overlay */}
+      {showRegister && (
+        <Register 
+          onClose={() => setShowRegister(false)}
+          onRegisterSuccess={(email) => {
+            setIsLoggedIn(true)
+            setUserEmail(email)
+            setShowRegister(false)
+          }}
+        />
+      )}
     </div>
   )
 }
