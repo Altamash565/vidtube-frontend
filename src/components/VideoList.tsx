@@ -6,6 +6,7 @@ import { VideoEmptyState } from './VideoEmptyState'
 
 export interface VideoListProps {
   searchQuery?: string
+  videos?: Video[]
   onSelectVideo?: (video: Video) => void
   onSelectChannel?: (channel: { name: string; avatar: string }) => void
 }
@@ -145,10 +146,11 @@ export const MOCK_VIDEOS: Video[] = [
   }
 ]
 
-export const VideoList: React.FC<VideoListProps> = ({ searchQuery = '', onSelectVideo, onSelectChannel }) => {
+export const VideoList: React.FC<VideoListProps> = ({ searchQuery = '', videos, onSelectVideo, onSelectChannel }) => {
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid')
 
-  const filteredVideos = MOCK_VIDEOS.filter(video => 
+  const videosList = (videos || MOCK_VIDEOS).filter(video => video.published !== false)
+  const filteredVideos = videosList.filter(video => 
     video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     video.channelName.toLowerCase().includes(searchQuery.toLowerCase())
   )

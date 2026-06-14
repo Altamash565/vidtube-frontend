@@ -55,6 +55,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeId = 'home', onSelect })
       )
     },
     {
+      id: 'dashboard',
+      label: 'Dashboard',
+      desktopOnly: true,
+      icon: (
+        <svg style={{ width: '100%' }} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 4h6v8H4zm10 0h6v6h-6zm0 10h6v6h-6zM4 16h6v4H4z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )
+    },
+    {
       id: 'collections',
       label: 'Collections',
       icon: (

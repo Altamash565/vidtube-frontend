@@ -10,6 +10,10 @@ export interface Video {
   avatar: string
   channelName: string
   description?: string
+  published?: boolean
+  likes?: number
+  dislikes?: number
+  dateUploaded?: string
 }
 
 export interface VideoCardProps {

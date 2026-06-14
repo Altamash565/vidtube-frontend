@@ -6,9 +6,19 @@ import { type Video } from './VideoCard'
 export interface ChannelPageProps {
   channelName: string
   channelAvatar: string
+  channelCover?: string
+  channelHandle?: string
+  subscribers?: string
+  subscribedCount?: string
+  isOwner?: boolean
+  videos?: Video[]
+  tweets?: Tweet[]
   onBack: () => void
   onSelectVideo?: (video: Video) => void
   onSelectChannel?: (channel: { name: string; avatar: string }) => void
+  onEditClick?: () => void
+  onNewVideoClick?: () => void
+  onAddTweet?: (content: string) => void
 }
 
 export interface Tweet {
@@ -368,15 +378,26 @@ export const PLAYLIST_VIDEOS_MAP: Record<string, string[]> = {
 export const ChannelPage: React.FC<ChannelPageProps> = ({ 
   channelName, 
   channelAvatar, 
+  channelCover,
+  channelHandle,
+  subscribers,
+  subscribedCount,
+  isOwner = false,
+  videos,
+  tweets,
   onBack,
   onSelectVideo,
-  onSelectChannel
+  onSelectChannel,
+  onEditClick,
+  onNewVideoClick,
+  onAddTweet
 }) => {
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [activeSubTab, setActiveSubTab] = useState<'videos' | 'playlist' | 'tweets' | 'subscribed'>('videos')
   const [subscribedChannels, setSubscribedChannels] = useState<SubscribedChannel[]>(INITIAL_SUBSCRIBED_CHANNELS)
   const [channelSearchQuery, setChannelSearchQuery] = useState('')
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
+  const [newTweetText, setNewTweetText] = useState('')
 
   React.useEffect(() => {
     setSelectedPlaylist(null)
@@ -398,15 +419,24 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
     ))
   }
 
+  const handleSendTweet = () => {
+    if (newTweetText.trim()) {
+      onAddTweet?.(newTweetText.trim())
+      setNewTweetText('')
+    }
+  }
+
   const isReactPatterns = channelName.toLowerCase() === 'react patterns'
 
-  const channelHandle = `@${channelName.toLowerCase().replace(/[^a-z0-9]/g, '')}`
+  const displayHandle = channelHandle || `@${channelName.toLowerCase().replace(/[^a-z0-9]/g, '')}`
 
-  const filteredVideos = MOCK_VIDEOS.filter(
+  const videosList = videos || MOCK_VIDEOS
+  const filteredVideos = videosList.filter(
     video => video.channelName.toLowerCase() === channelName.toLowerCase()
   )
 
-  const filteredTweets = MOCK_TWEETS.filter(
+  const tweetsList = tweets || MOCK_TWEETS
+  const filteredTweets = tweetsList.filter(
     tweet => tweet.channelName.toLowerCase() === channelName.toLowerCase()
   )
 
@@ -419,7 +449,7 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
   )
 
   const playlistVideoIds = selectedPlaylist ? (PLAYLIST_VIDEOS_MAP[selectedPlaylist.id] || []) : []
-  const playlistVideos = MOCK_VIDEOS.filter(video => playlistVideoIds.includes(video.id))
+  const playlistVideos = videosList.filter(video => playlistVideoIds.includes(video.id))
 
   return (
     <div className="w-full flex-grow overflow-y-auto bg-[#121212] px-4 py-4 lg:px-8">
@@ -437,7 +467,7 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
         <div className="relative min-h-[150px] w-full pt-[16.28%] bg-neutral-950">
           <div className="absolute inset-0 overflow-hidden">
             <img 
-              src="https://images.pexels.com/photos/1092424/pexels-photo-1092424.jpeg?auto=compress" 
+              src={channelCover || "https://images.pexels.com/photos/1092424/pexels-photo-1092424.jpeg?auto=compress"} 
               alt="cover-photo"
               className="w-full h-full object-cover opacity-85"
             />
@@ -459,30 +489,44 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
             {/* Metadata Text */}
             <div className="mr-auto inline-block">
               <h1 className="font-bold text-xl text-white">{channelName}</h1>
-              <p className="text-sm text-neutral-400 mt-0.5">{channelHandle}</p>
+              <p className="text-sm text-neutral-400 mt-0.5">{displayHandle}</p>
               <p className="text-sm text-neutral-400 mt-1">
-                {isSubscribed ? '601k' : '600k'} Subscribers · 220 Subscribed
+                {subscribers || (isSubscribed ? '601k' : '600k')} Subscribers · {subscribedCount || '220'} Subscribed
               </p>
             </div>
 
-            {/* Subscribe Action Button */}
+            {/* Action Button */}
             <div className="inline-block pt-2">
               <div className="inline-flex min-w-[145px] justify-end">
-                <button 
-                  onClick={handleSubscribe}
-                  className={`flex w-full items-center justify-center gap-x-2 px-4 py-2 text-center font-bold transition-all duration-150 ease-in-out border ${
-                    isSubscribed 
-                      ? 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-750' 
-                      : 'bg-[#ae7aff] text-black border-transparent shadow-[5px_5px_0px_0px_#4f4e4e] active:translate-x-[5px] active:translate-y-[5px] active:shadow-[0px_0px_0px_0px_#4f4e4e]'
-                  }`}
-                >
-                  <span className="inline-block w-5">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z"></path>
-                    </svg>
-                  </span>
-                  <span>{isSubscribed ? 'Subscribed' : 'Subscribe'}</span>
-                </button>
+                {isOwner ? (
+                  <button 
+                    onClick={onEditClick}
+                    className="group/btn mr-1 flex w-full items-center justify-center gap-x-2 bg-[#ae7aff] px-4 py-2 text-center font-bold text-black border border-transparent shadow-[5px_5px_0px_0px_#4f4e4e] transition-all duration-150 ease-in-out active:translate-x-[5px] active:translate-y-[5px] active:shadow-[0px_0px_0px_0px_#4f4e4e] sm:w-auto"
+                  >
+                    <span className="inline-block w-5">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"></path>
+                      </svg>
+                    </span>
+                    <span>Edit</span>
+                  </button>
+                ) : (
+                  <button 
+                    onClick={handleSubscribe}
+                    className={`flex w-full items-center justify-center gap-x-2 px-4 py-2 text-center font-bold transition-all duration-150 ease-in-out border ${
+                      isSubscribed 
+                        ? 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-750' 
+                        : 'bg-[#ae7aff] text-black border-transparent shadow-[5px_5px_0px_0px_#4f4e4e] active:translate-x-[5px] active:translate-y-[5px] active:shadow-[0px_0px_0px_0px_#4f4e4e]'
+                    }`}
+                  >
+                    <span className="inline-block w-5">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z"></path>
+                      </svg>
+                    </span>
+                    <span>{isSubscribed ? 'Subscribed' : 'Subscribe'}</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -554,6 +598,17 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
                     </p>
                     <h5 className="mb-2 font-semibold text-white text-lg">No videos uploaded</h5>
                     <p className="text-neutral-400 text-sm">This page has yet to upload a video. Search another page in order to find more videos.</p>
+                    {isOwner && (
+                      <button 
+                        onClick={onNewVideoClick}
+                        className="mt-4 inline-flex items-center gap-x-2 bg-[#ae7aff] px-3 py-2 font-semibold text-black hover:bg-[#b98dff] transition-colors duration-150 cursor-pointer shadow-md"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true" className="h-5 w-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15"></path>
+                        </svg>
+                        New video
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -782,29 +837,61 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
             )}
 
             {activeSubTab === 'tweets' && (
-              filteredTweets.length === 0 ? (
-                <div className="flex justify-center p-4">
-                  <div className="w-full max-w-sm text-center">
-                    <p className="mb-3 w-full flex justify-center">
-                      <span className="inline-flex rounded-full bg-[#E4D3FF] p-2 text-[#AE7AFF]">
-                        <span className="inline-block w-6">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true" className="w-6">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"></path>
-                          </svg>
-                        </span>
-                      </span>
-                    </p>
-                    <h5 className="mb-2 font-semibold text-white text-lg">No Tweets</h5>
-                    <p className="text-neutral-400 text-sm">This channel has yet to make a <strong className="text-white">Tweet</strong>.</p>
+              <div className="w-full flex flex-col">
+                {isOwner && (
+                  <div className="mt-2 border border-neutral-800 pb-2 rounded-lg bg-neutral-900/10 focus-within:border-[#ae7aff] transition-colors duration-150 mb-6">
+                    <textarea 
+                      value={newTweetText}
+                      onChange={(e) => setNewTweetText(e.target.value)}
+                      className="mb-2 h-10 w-full resize-none border-none bg-transparent px-3 pt-2 text-white placeholder-neutral-500 outline-none text-sm" 
+                      placeholder="Write a tweet"
+                    />
+                    <div className="flex items-center justify-end gap-x-3 px-3">
+                      <button className="inline-block h-5 w-5 text-neutral-400 hover:text-[#ae7aff] transition-colors duration-150 outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z"></path>
+                        </svg>
+                      </button>
+                      <button className="inline-block h-5 w-5 text-neutral-400 hover:text-[#ae7aff] transition-colors duration-150 outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"></path>
+                        </svg>
+                      </button>
+                      <button 
+                        onClick={handleSendTweet}
+                        disabled={!newTweetText.trim()}
+                        className="bg-[#ae7aff] px-4 py-1.5 font-semibold text-black hover:bg-[#b98dff] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 text-sm shadow-sm"
+                      >
+                        Send
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="py-4">
-                  {filteredTweets.map(tweet => (
-                    <TweetItem key={tweet.id} tweet={tweet} channelAvatar={channelAvatar} />
-                  ))}
-                </div>
-              )
+                )}
+
+                {filteredTweets.length === 0 ? (
+                  <div className="flex justify-center p-4">
+                    <div className="w-full max-w-sm text-center py-8">
+                      <p className="mb-3 w-full flex justify-center">
+                        <span className="inline-flex rounded-full bg-[#E4D3FF] p-2 text-[#AE7AFF]">
+                          <span className="inline-block w-6">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true" className="w-6 h-6">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"></path>
+                            </svg>
+                          </span>
+                        </span>
+                      </p>
+                      <h5 className="mb-2 font-semibold text-white text-lg">No Tweets</h5>
+                      <p className="text-neutral-400 text-sm">This channel has yet to make a <strong className="text-white">Tweet</strong>.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-4">
+                    {filteredTweets.map(tweet => (
+                      <TweetItem key={tweet.id} tweet={tweet} channelAvatar={channelAvatar} />
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {activeSubTab === 'subscribed' && (
