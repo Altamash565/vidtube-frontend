@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { X } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
 
 export interface LoginProps {
   onClose: () => void
@@ -7,27 +8,43 @@ export interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onClose, onLoginSuccess }) => {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { login } = useAuth()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Basic validation
-    const trimmedEmail = email.trim()
-    if (!trimmedEmail) {
-      setError('Email is required')
+    const trimmedUsername = username.trim()
+    if (!trimmedUsername) {
+      setError('Username or email is required')
+      return
+    }
+    if (!password) {
+      setError('Password is required')
       return
     }
 
-    if (!trimmedEmail.includes('@') || trimmedEmail.length < 5) {
-      setError('Please enter a valid email address')
-      return
-    }
-
-    // Success
+    setIsSubmitting(true)
     setError('')
-    onLoginSuccess(trimmedEmail)
+
+    try {
+      // Determine if input is email or username
+      const isEmail = trimmedUsername.includes('@')
+      await login(
+        isEmail
+          ? { email: trimmedUsername, password }
+          : { username: trimmedUsername, password }
+      )
+      onLoginSuccess(trimmedUsername)
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      setError(axiosErr.response?.data?.message || 'Login failed. Please check your credentials.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -68,17 +85,35 @@ export const Login: React.FC<LoginProps> = ({ onClose, onLoginSuccess }) => {
             Play
           </div>
 
-          {/* Email Input Field */}
-          <label htmlFor="email" className="mb-1.5 inline-block text-sm font-medium text-neutral-300">
-            Email*
+          {/* Username / Email Input */}
+          <label htmlFor="login-username" className="mb-1.5 inline-block text-sm font-medium text-neutral-300">
+            Username or Email*
           </label>
           <input 
-            id="email" 
-            type="email" 
-            placeholder="Enter your email" 
-            value={email}
+            id="login-username" 
+            type="text" 
+            placeholder="Enter your username or email" 
+            value={username}
             onChange={(e) => {
-              setEmail(e.target.value)
+              setUsername(e.target.value)
+              if (error) setError('')
+            }}
+            className={`mb-4 w-full rounded-lg border bg-transparent px-3 py-2 text-white placeholder-neutral-500 outline-none transition-all duration-150 focus:border-[#ae7aff] focus:ring-1 focus:ring-[#ae7aff] ${
+              error ? 'border-red-500 bg-red-500/5' : 'border-neutral-700'
+            }`}
+          />
+
+          {/* Password Input */}
+          <label htmlFor="login-password" className="mb-1.5 inline-block text-sm font-medium text-neutral-300">
+            Password*
+          </label>
+          <input 
+            id="login-password" 
+            type="password" 
+            placeholder="Enter your password" 
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value)
               if (error) setError('')
             }}
             className={`mb-4 w-full rounded-lg border bg-transparent px-3 py-2 text-white placeholder-neutral-500 outline-none transition-all duration-150 focus:border-[#ae7aff] focus:ring-1 focus:ring-[#ae7aff] ${
@@ -96,9 +131,10 @@ export const Login: React.FC<LoginProps> = ({ onClose, onLoginSuccess }) => {
           {/* Action Button */}
           <button 
             type="submit"
-            className="w-full bg-[#ae7aff] py-3 font-bold text-black shadow-[5px_5px_0px_0px_#4f4e4e] transition-all duration-150 ease-in-out hover:bg-[#b98dff] active:translate-x-[5px] active:translate-y-[5px] active:shadow-[0px_0px_0px_0px_#4f4e4e] cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full bg-[#ae7aff] py-3 font-bold text-black shadow-[5px_5px_0px_0px_#4f4e4e] transition-all duration-150 ease-in-out hover:bg-[#b98dff] active:translate-x-[5px] active:translate-y-[5px] active:shadow-[0px_0px_0px_0px_#4f4e4e] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Sign in with Email
+            {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
 
           {/* Cancel option below */}

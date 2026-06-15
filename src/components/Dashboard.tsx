@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import type { Video } from './VideoCard'
 import type { ChannelDetails } from './SettingsPage'
 
@@ -19,35 +19,56 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onEditVideo,
   onUploadClick
 }) => {
+  const [apiStats, setApiStats] = useState<{ totalViews: number; totalLikes: number; totalSubscribers: number } | null>(null)
+
+  useEffect(() => {
+    import('../services/dashboardService').then(mod => {
+      mod.default.getChannelStats()
+        .then(res => {
+          if (res.data) setApiStats(res.data)
+        })
+        .catch(() => { /* fallback to local calc */ })
+    })
+  }, [])
+
   // Filter videos that belong to the active owner channel
   const ownerVideos = videos.filter(
     video => video.channelName.toLowerCase() === channelDetails.name.toLowerCase()
   )
 
-  // Calculate dynamic stats
-  const totalViewsVal = ownerVideos.reduce((sum, vid) => {
-    // Parse view strings like '10.3k' or '18.9M' or '221,234'
-    const cleanStr = vid.views.toLowerCase().replace(/,/g, '')
-    let num = parseFloat(cleanStr)
-    if (cleanStr.includes('k')) {
-      num = num * 1000
-    } else if (cleanStr.includes('m')) {
-      num = num * 1000000
-    }
-    return sum + (isNaN(num) ? 0 : num)
-  }, 0)
+  // Use API stats if available, otherwise calculate locally
+  let formattedViews: string
+  let formattedLikes: string
+  let subscribersCount: string
 
-  const formattedViews = totalViewsVal > 0 
-    ? totalViewsVal.toLocaleString() 
-    : '221,234'
+  if (apiStats) {
+    formattedViews = (apiStats.totalViews || 0).toLocaleString()
+    formattedLikes = (apiStats.totalLikes || 0).toLocaleString()
+    subscribersCount = (apiStats.totalSubscribers || 0).toLocaleString()
+  } else {
+    // Calculate dynamic stats from local data
+    const totalViewsVal = ownerVideos.reduce((sum, vid) => {
+      const cleanStr = vid.views.toLowerCase().replace(/,/g, '')
+      let num = parseFloat(cleanStr)
+      if (cleanStr.includes('k')) {
+        num = num * 1000
+      } else if (cleanStr.includes('m')) {
+        num = num * 1000000
+      }
+      return sum + (isNaN(num) ? 0 : num)
+    }, 0)
 
-  const totalLikesVal = ownerVideos.reduce((sum, vid) => sum + (vid.likes || 0), 0)
-  const formattedLikes = totalLikesVal > 0 
-    ? totalLikesVal.toLocaleString() 
-    : '63,021'
+    formattedViews = totalViewsVal > 0 
+      ? totalViewsVal.toLocaleString() 
+      : '0'
 
-  // Format subscribers count from settings or default to mockup
-  const subscribersCount = channelDetails.subscribers || '4,053'
+    const totalLikesVal = ownerVideos.reduce((sum, vid) => sum + (vid.likes || 0), 0)
+    formattedLikes = totalLikesVal > 0 
+      ? totalLikesVal.toLocaleString() 
+      : '0'
+
+    subscribersCount = channelDetails.subscribers || '0'
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-y-6 px-4 py-8 text-left bg-[#121212] min-h-[calc(100vh-82px)]">

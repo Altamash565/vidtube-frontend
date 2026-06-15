@@ -1,7 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { MOCK_VIDEOS } from './VideoList'
 import { type Video } from './VideoCard'
+import tweetService from '../services/tweetService'
+import playlistService from '../services/playlistService'
+import subscriptionService from '../services/subscriptionService'
+import { mapApiTweetToTweet, mapApiVideoToVideo } from '../types'
+import type { ApiPlaylist } from '../types'
 
 export interface ChannelPageProps {
   channelName: string
@@ -15,10 +20,12 @@ export interface ChannelPageProps {
   tweets?: Tweet[]
   onBack: () => void
   onSelectVideo?: (video: Video) => void
-  onSelectChannel?: (channel: { name: string; avatar: string }) => void
+  onSelectChannel?: (channel: { name: string; avatar: string; username?: string }) => void
   onEditClick?: () => void
   onNewVideoClick?: () => void
   onAddTweet?: (content: string) => void
+  userId?: string
+  channelUsername?: string
 }
 
 export interface Tweet {
@@ -28,6 +35,9 @@ export interface Tweet {
   content: string
   likes: number
   dislikes: number
+  ownerId?: string
+  ownerAvatar?: string
+  isLiked?: boolean
 }
 
 export const MOCK_TWEETS: Tweet[] = [
@@ -384,13 +394,14 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
   subscribedCount,
   isOwner = false,
   videos,
-  tweets,
+  tweets: propTweets,
   onBack,
   onSelectVideo,
   onSelectChannel,
   onEditClick,
   onNewVideoClick,
-  onAddTweet
+  onAddTweet,
+  userId
 }) => {
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [activeSubTab, setActiveSubTab] = useState<'videos' | 'playlist' | 'tweets' | 'subscribed'>('videos')
@@ -398,14 +409,76 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
   const [channelSearchQuery, setChannelSearchQuery] = useState('')
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
   const [newTweetText, setNewTweetText] = useState('')
+  const [fetchedTweets, setFetchedTweets] = useState<Tweet[]>([])
+  const [fetchedPlaylists, setFetchedPlaylists] = useState<ApiPlaylist[]>([])
+  const [apiPlaylistVideos, setApiPlaylistVideos] = useState<Video[]>([])
 
-  React.useEffect(() => {
+  // Fetch tweets from API when user switches to tweets tab
+  useEffect(() => {
     setSelectedPlaylist(null)
     setActiveSubTab('videos')
+    setFetchedTweets([])
+    setFetchedPlaylists([])
   }, [channelName])
 
-  const handleSubscribe = () => {
-    setIsSubscribed(!isSubscribed)
+  // Fetch tweets from API
+  useEffect(() => {
+    if (activeSubTab === 'tweets' && userId) {
+      tweetService.getUserTweets(userId)
+        .then(res => {
+          const apiTweets = Array.isArray(res.data) ? res.data : []
+          setFetchedTweets(apiTweets.map(mapApiTweetToTweet))
+        })
+        .catch(() => setFetchedTweets([]))
+    }
+  }, [activeSubTab, userId])
+
+  // Fetch playlists from API
+  useEffect(() => {
+    if (activeSubTab === 'playlist' && userId) {
+      playlistService.getUserPlaylists(userId)
+        .then(res => {
+          const data = Array.isArray(res.data) ? res.data : []
+          setFetchedPlaylists(data)
+        })
+        .catch(() => setFetchedPlaylists([]))
+    }
+  }, [activeSubTab, userId])
+
+  // Fetch subscribed channels from API
+  useEffect(() => {
+    if (activeSubTab === 'subscribed' && userId) {
+      subscriptionService.getSubscribedChannels(userId)
+        .then(res => {
+          const data = Array.isArray(res.data) ? res.data : []
+          const mapped = data.map((item: unknown) => {
+            const obj = item as { _id: string; channel?: { _id: string; username: string; fullname: string; avatar: string }; subscribersCount?: number; isSubscribed?: boolean }
+            return {
+              id: obj._id || '',
+              name: obj.channel?.fullname || obj.channel?.username || 'Unknown',
+              avatar: obj.channel?.avatar || '',
+              subscribers: String(obj.subscribersCount || 0),
+              isSubscribed: obj.isSubscribed ?? true
+            }
+          })
+          setSubscribedChannels(mapped)
+        })
+        .catch(() => setSubscribedChannels([]))
+    }
+  }, [activeSubTab, userId])
+
+  const handleSubscribe = async () => {
+    if (userId) {
+      try {
+        await subscriptionService.toggleSubscription(userId)
+        setIsSubscribed(!isSubscribed)
+      } catch {
+        // fallback
+        setIsSubscribed(!isSubscribed)
+      }
+    } else {
+      setIsSubscribed(!isSubscribed)
+    }
   }
 
   const handleTabClick = (tab: 'videos' | 'playlist' | 'tweets' | 'subscribed') => {
@@ -413,20 +486,29 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
     setSelectedPlaylist(null)
   }
 
-  const toggleChannelSubscribe = (id: string) => {
+  const toggleChannelSubscribe = async (id: string) => {
+    try {
+      await subscriptionService.toggleSubscription(id)
+    } catch { /* ignore */ }
     setSubscribedChannels(prev => prev.map(c => 
       c.id === id ? { ...c, isSubscribed: !c.isSubscribed } : c
     ))
   }
 
-  const handleSendTweet = () => {
+  const handleSendTweet = async () => {
     if (newTweetText.trim()) {
       onAddTweet?.(newTweetText.trim())
       setNewTweetText('')
+      // Re-fetch tweets
+      if (userId) {
+        try {
+          const res = await tweetService.getUserTweets(userId)
+          const apiTweets = Array.isArray(res.data) ? res.data : []
+          setFetchedTweets(apiTweets.map(mapApiTweetToTweet))
+        } catch { /* ignore */ }
+      }
     }
   }
-
-  const isReactPatterns = channelName.toLowerCase() === 'react patterns'
 
   const displayHandle = channelHandle || `@${channelName.toLowerCase().replace(/[^a-z0-9]/g, '')}`
 
@@ -435,7 +517,8 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
     video => video.channelName.toLowerCase() === channelName.toLowerCase()
   )
 
-  const tweetsList = tweets || MOCK_TWEETS
+  // Use fetched tweets if available, otherwise fall back to props or mock
+  const tweetsList = fetchedTweets.length > 0 ? fetchedTweets : (propTweets || MOCK_TWEETS)
   const filteredTweets = tweetsList.filter(
     tweet => tweet.channelName.toLowerCase() === channelName.toLowerCase()
   )
@@ -444,12 +527,40 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
     channel => channel.name.toLowerCase().includes(channelSearchQuery.toLowerCase())
   )
 
-  const filteredPlaylists = MOCK_PLAYLISTS.filter(
-    playlist => playlist.channelName.toLowerCase() === channelName.toLowerCase()
-  )
+  // Use API playlists if available, otherwise fallback to mock
+  const filteredPlaylists = fetchedPlaylists.length > 0 
+    ? fetchedPlaylists.map(p => ({
+        id: p._id,
+        title: p.name,
+        description: p.description,
+        thumbnail: p.videos?.[0]?.thumbnail || 'https://images.pexels.com/photos/3561339/pexels-photo-3561339.jpeg?auto=compress&cs=tinysrgb&w=600',
+        videoCount: p.videos?.length || 0,
+        views: '',
+        uploadedAt: '',
+        channelName: channelName
+      }))
+    : MOCK_PLAYLISTS.filter(
+        playlist => playlist.channelName.toLowerCase() === channelName.toLowerCase()
+      )
 
+  // For API playlists, fetch videos when a playlist is selected
   const playlistVideoIds = selectedPlaylist ? (PLAYLIST_VIDEOS_MAP[selectedPlaylist.id] || []) : []
-  const playlistVideos = videosList.filter(video => playlistVideoIds.includes(video.id))
+  const playlistVideos = apiPlaylistVideos.length > 0 
+    ? apiPlaylistVideos 
+    : videosList.filter(video => playlistVideoIds.includes(video.id))
+  
+  // Fetch playlist videos from API when a playlist is selected  
+  useEffect(() => {
+    if (selectedPlaylist && fetchedPlaylists.length > 0) {
+      const apiPl = fetchedPlaylists.find(p => p._id === selectedPlaylist.id)
+      if (apiPl && apiPl.videos) {
+        setApiPlaylistVideos(apiPl.videos.map(mapApiVideoToVideo))
+      }
+    } else {
+      setApiPlaylistVideos([])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPlaylist])
 
   return (
     <div className="w-full flex-grow overflow-y-auto bg-[#121212] px-4 py-4 lg:px-8">
@@ -895,7 +1006,7 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
             )}
 
             {activeSubTab === 'subscribed' && (
-              !isReactPatterns ? (
+              subscribedChannels.length === 0 ? (
                 <div className="flex justify-center p-4">
                   <div className="w-full max-w-sm text-center">
                     <p className="mb-3 w-full flex justify-center">

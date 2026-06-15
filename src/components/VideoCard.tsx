@@ -14,6 +14,9 @@ export interface Video {
   likes?: number
   dislikes?: number
   dateUploaded?: string
+  videoFile?: string
+  ownerId?: string
+  ownerUsername?: string
 }
 
 export interface VideoCardProps {

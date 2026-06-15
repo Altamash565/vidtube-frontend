@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import authService from '../services/authService'
 
 export interface PersonalInfo {
   firstName: string
@@ -75,26 +76,48 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }, 3000)
   }
 
-  // Handle file uploads (converts to object URL for instant visual update)
-  const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file uploads (upload to API)
+  const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const url = URL.createObjectURL(file)
-      onSaveChannelDetails({ ...channelDetails, avatar: url })
-      triggerToast('Profile picture updated successfully!')
+      try {
+        const formData = new FormData()
+        formData.append('avatar', file)
+        const res = await authService.updateAvatar(formData)
+        if (res.data) {
+          onSaveChannelDetails({ ...channelDetails, avatar: res.data.avatar })
+          triggerToast('Profile picture updated successfully!')
+        }
+      } catch {
+        // Fallback to local preview
+        const url = URL.createObjectURL(file)
+        onSaveChannelDetails({ ...channelDetails, avatar: url })
+        triggerToast('Profile picture updated locally.')
+      }
     }
   }
 
-  const handleCoverImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const url = URL.createObjectURL(file)
-      onSaveChannelDetails({ ...channelDetails, coverImage: url })
-      triggerToast('Cover photo updated successfully!')
+      try {
+        const formData = new FormData()
+        formData.append('coverImage', file)
+        const res = await authService.updateCoverImage(formData)
+        if (res.data) {
+          onSaveChannelDetails({ ...channelDetails, coverImage: res.data.coverImage || '' })
+          triggerToast('Cover photo updated successfully!')
+        }
+      } catch {
+        const url = URL.createObjectURL(file)
+        onSaveChannelDetails({ ...channelDetails, coverImage: url })
+        triggerToast('Cover photo updated locally.')
+      }
     }
   }
 
-  const handlePersonalSave = (e: React.FormEvent) => {
+
+  const handlePersonalSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!firstName.trim() || !lastName.trim()) {
       triggerToast('First and last name cannot be empty.', 'error')
@@ -104,8 +127,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       triggerToast('Please enter a valid email address.', 'error')
       return
     }
-    onSavePersonalInfo({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim() })
-    triggerToast('Personal information saved successfully!')
+    try {
+      const fullname = `${firstName.trim()} ${lastName.trim()}`
+      await authService.updateAccountDetails(fullname, email.trim())
+      onSavePersonalInfo({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim() })
+      triggerToast('Personal information saved successfully!')
+    } catch {
+      triggerToast('Failed to update personal info.', 'error')
+    }
   }
 
   const handleChannelSave = (e: React.FormEvent) => {
@@ -125,7 +154,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     triggerToast('Channel information saved successfully!')
   }
 
-  const handlePasswordSave = (e: React.FormEvent) => {
+  const handlePasswordSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentPassword) {
       triggerToast('Please enter your current password.', 'error')
@@ -139,11 +168,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       triggerToast('New passwords do not match.', 'error')
       return
     }
-    // Success scenario
-    triggerToast('Password changed successfully!')
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
+    try {
+      await authService.changePassword(currentPassword, newPassword)
+      triggerToast('Password changed successfully!')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      triggerToast(axiosErr.response?.data?.message || 'Failed to change password.', 'error')
+    }
   }
 
   const handlePersonalCancel = () => {
