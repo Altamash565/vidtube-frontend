@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, ThumbsUp, ThumbsDown, Share2, Download, MoreHorizontal, Play, Send } from 'lucide-react'
+import { ArrowLeft, ThumbsUp, ThumbsDown, Share2, Download, MoreHorizontal, Play, Send, Plus } from 'lucide-react'
 import type { Video } from './VideoCard'
 import likeService from '../services/likeService'
 import subscriptionService from '../services/subscriptionService'
 import commentService from '../services/commentService'
-import type { ApiComment } from '../types'
+import playlistService from '../services/playlistService'
+import videoService from '../services/videoService'
+import { useAuth } from '../context/AuthContext'
+import { mapApiVideoToVideo, timeAgo } from '../types'
+import type { ApiComment, ApiPlaylist } from '../types'
 
 export interface VideoDetailProps {
   video: Video
@@ -21,11 +25,18 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
   onSelectVideo,
   onSelectChannel
 }) => {
+  const { isLoggedIn, user } = useAuth()
+  const [videoDetails, setVideoDetails] = useState<Video | null>(video)
   const [isLiked, setIsLiked] = useState(false)
   const [isDisliked, setIsDisliked] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isDescExpanded, setIsDescExpanded] = useState(false)
   const [likeCount, setLikeCount] = useState(video.likes || 0)
+
+  // Playlist state
+  const [userPlaylists, setUserPlaylists] = useState<ApiPlaylist[]>([])
+  const [showPlaylistDropdown, setShowPlaylistDropdown] = useState(false)
+  const [newPlaylistName, setNewPlaylistName] = useState('')
 
   // Comments state
   const [comments, setComments] = useState<ApiComment[]>([])
@@ -35,13 +46,37 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
   // Get recommendations (excluding current video)
   const recommendations = allVideos.filter(v => v.id !== video.id)
 
-  // Reset states when video changes
+  // Fetch/Reset video details and check watch history trigger on mount/video change
   useEffect(() => {
+    setVideoDetails(video)
     setIsLiked(false)
     setIsDisliked(false)
     setIsDescExpanded(false)
     setLikeCount(video.likes || 0)
-  }, [video.id, video.likes])
+    setShowPlaylistDropdown(false)
+
+    // Call video by ID to trigger view increment, watch history addition, and fetch likes count
+    videoService.getVideoById(video.id)
+      .then(res => {
+        if (res.data) {
+          const mapped = mapApiVideoToVideo(res.data)
+          setVideoDetails(mapped)
+          setLikeCount(mapped.likes || 0)
+          
+          // Check backend values if returned in request
+          const rawData = res.data as unknown as { isLiked?: boolean; isSubscribed?: boolean }
+          if (typeof rawData.isLiked === 'boolean') {
+            setIsLiked(rawData.isLiked)
+          }
+          if (typeof rawData.isSubscribed === 'boolean') {
+            setIsSubscribed(rawData.isSubscribed)
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Failed to get fresh video details:', err)
+      })
+  }, [video.id, video])
 
   // Fetch comments
   useEffect(() => {
@@ -81,16 +116,18 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
   }
 
   const handleSubscribe = async () => {
-    if (video.ownerId) {
+    const currentVideo = videoDetails || video
+    if (currentVideo.ownerId) {
       try {
-        await subscriptionService.toggleSubscription(video.ownerId)
+        await subscriptionService.toggleSubscription(currentVideo.ownerId)
       } catch { /* ignore */ }
     }
     setIsSubscribed(!isSubscribed)
   }
 
   const handleChannelClick = () => {
-    onSelectChannel?.({ name: video.channelName, avatar: video.avatar, username: video.ownerUsername })
+    const currentVideo = videoDetails || video
+    onSelectChannel?.({ name: currentVideo.channelName, avatar: currentVideo.avatar, username: currentVideo.ownerUsername })
   }
 
   const handleAddComment = async () => {
@@ -115,18 +152,78 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
     }
   }
 
-  const formatTimeAgo = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMin = Math.floor(diffMs / 60000)
-    const diffHr = Math.floor(diffMin / 60)
-    const diffDay = Math.floor(diffHr / 24)
-    if (diffDay > 0) return `${diffDay}d ago`
-    if (diffHr > 0) return `${diffHr}h ago`
-    if (diffMin > 0) return `${diffMin}m ago`
-    return 'Just now'
+  const handleToggleCommentLike = async (commentId: string) => {
+    try {
+      const res = await likeService.toggleCommentLike(commentId)
+      const isLikedNow = (res.data as { isLiked?: boolean })?.isLiked ?? false
+      
+      setComments(prev => prev.map(c => {
+        if (c._id === commentId) {
+          const wasLiked = c.isLiked
+          const newLikesCount = c.likesCount !== undefined
+            ? c.likesCount + (isLikedNow ? (wasLiked ? 0 : 1) : (wasLiked ? -1 : 0))
+            : (isLikedNow ? 1 : 0)
+          return {
+            ...c,
+            isLiked: isLikedNow,
+            likesCount: Math.max(0, newLikesCount)
+          }
+        }
+        return c
+      }))
+    } catch (err) {
+      console.error('Failed to toggle comment like:', err)
+    }
   }
+
+  const togglePlaylistDropdown = async () => {
+    if (!isLoggedIn) {
+      alert('Please log in to save videos to playlists.')
+      return
+    }
+    const nextState = !showPlaylistDropdown
+    setShowPlaylistDropdown(nextState)
+    if (nextState && user?._id) {
+      try {
+        const res = await playlistService.getUserPlaylists(user._id)
+        if (res.data) {
+          setUserPlaylists(Array.isArray(res.data) ? res.data : [])
+        }
+      } catch (err) {
+        console.error('Failed to load user playlists:', err)
+      }
+    }
+  }
+
+  const handleAddToPlaylist = async (playlistId: string) => {
+    try {
+      await playlistService.addVideoToPlaylist(video.id, playlistId)
+      alert('Video added to playlist!')
+      setShowPlaylistDropdown(false)
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      alert(axiosErr.response?.data?.message || 'Failed to add video to playlist')
+    }
+  }
+
+  const handleCreateAndAdd = async () => {
+    if (!newPlaylistName.trim()) return
+    try {
+      const res = await playlistService.createPlaylist(newPlaylistName.trim(), 'Curated from video details.')
+      if (res.data?._id) {
+        await playlistService.addVideoToPlaylist(video.id, res.data._id)
+        alert(`Created playlist "${newPlaylistName.trim()}" and added video!`)
+        setNewPlaylistName('')
+        setShowPlaylistDropdown(false)
+      }
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } }
+      alert(axiosErr.response?.data?.message || 'Failed to create playlist')
+    }
+  }
+
+
+  const currentVideo = videoDetails || video
 
   return (
     <div className="w-full flex-grow overflow-y-auto bg-[#121212] px-4 py-4 lg:px-8">
@@ -146,18 +243,18 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
           {/* Video Player */}
           <div className="relative w-full pt-[56.25%] bg-black rounded-xl overflow-hidden border border-neutral-800 group shadow-lg">
             <div className="absolute inset-0 flex items-center justify-center">
-              {video.videoFile ? (
+              {currentVideo.videoFile ? (
                 <video 
-                  src={video.videoFile} 
-                  poster={video.thumbnail}
+                  src={currentVideo.videoFile} 
+                  poster={currentVideo.thumbnail}
                   controls 
                   className="w-full h-full object-contain"
                 />
               ) : (
                 <>
                   <img 
-                    src={video.thumbnail} 
-                    alt={video.title} 
+                    src={currentVideo.thumbnail} 
+                    alt={currentVideo.title} 
                     className="w-full h-full object-cover opacity-75 group-hover:scale-102 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-black/30 group-hover:bg-black/45 transition-colors" />
@@ -169,9 +266,9 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
             </div>
             
             {/* Player Controls Overlay */}
-            {!video.videoFile && (
+            {!currentVideo.videoFile && (
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-between">
-                <span className="text-xs text-neutral-300 font-mono">0:00 / {video.duration}</span>
+                <span className="text-xs text-neutral-300 font-mono">0:00 / {currentVideo.duration}</span>
                 <div className="w-24 h-1 bg-neutral-600 rounded overflow-hidden">
                   <div className="w-1/3 h-full bg-[#ae7aff]" />
                 </div>
@@ -181,16 +278,16 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
 
           {/* Title */}
           <h1 className="mt-4 text-xl lg:text-2xl font-bold text-white leading-snug">
-            {video.title}
+            {currentVideo.title}
           </h1>
 
           {/* Meta & Action Buttons Bar */}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-4 border-b border-neutral-850 pb-4">
             <span className="text-sm text-neutral-400 font-medium">
-              {video.views} Views · {video.uploadedAt}
+              {currentVideo.views} Views · {currentVideo.uploadedAt}
             </span>
 
-            {/* Actions (Like, Share, Download) */}
+            {/* Actions (Like, Share, Download, Save) */}
             <div className="flex items-center gap-x-2">
               {/* Like / Dislike Group */}
               <div className="flex items-center bg-neutral-800/80 rounded-full p-0.5 overflow-hidden">
@@ -225,6 +322,57 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
                 <span className="hidden md:inline">Download</span>
               </button>
 
+              {/* Save to Playlist Dropdown */}
+              <div className="relative">
+                <button 
+                  onClick={togglePlaylistDropdown}
+                  className="flex items-center gap-x-2 px-4 py-2 bg-neutral-800/80 hover:bg-neutral-700/60 text-white rounded-full text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>Save</span>
+                </button>
+                
+                {showPlaylistDropdown && (
+                  <div className="absolute right-0 mt-2 z-50 w-56 rounded-lg border border-neutral-800 bg-[#1e1e1e] p-3 shadow-2xl text-left">
+                    <p className="px-1 pb-2 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Save video to...</p>
+                    <div className="my-1 max-h-40 overflow-y-auto flex flex-col gap-1 pr-1 border-b border-neutral-800 pb-2 mb-2">
+                      {userPlaylists.length === 0 ? (
+                        <p className="px-1 py-1.5 text-xs text-neutral-500">No playlists available</p>
+                      ) : (
+                        userPlaylists.map(pl => (
+                          <button
+                            key={pl._id}
+                            onClick={() => handleAddToPlaylist(pl._id)}
+                            className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-neutral-800 text-neutral-200 transition-colors flex items-center justify-between cursor-pointer"
+                          >
+                            <span className="truncate mr-2 font-medium">{pl.name}</span>
+                            <span className="text-[9px] text-neutral-500 font-semibold shrink-0 bg-neutral-900 px-1 py-0.5 rounded">{pl.videos?.length || 0} vids</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    {/* Input to create a new playlist directly */}
+                    <div className="flex flex-col gap-1.5">
+                      <input 
+                        type="text"
+                        placeholder="New playlist name..."
+                        value={newPlaylistName}
+                        onChange={e => setNewPlaylistName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAdd() }}
+                        className="w-full bg-neutral-950 border border-neutral-850 rounded px-2.5 py-1.5 text-xs text-white placeholder-neutral-500 outline-none focus:border-[#ae7aff]"
+                      />
+                      <button
+                        onClick={handleCreateAndAdd}
+                        disabled={!newPlaylistName.trim()}
+                        className="w-full bg-[#ae7aff] text-black font-bold text-xs py-1.5 rounded hover:bg-[#b98dff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        Create & Add
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button className="p-2 bg-neutral-800/80 hover:bg-neutral-700/60 text-white rounded-full transition-colors">
                 <MoreHorizontal size={16} />
               </button>
@@ -239,8 +387,8 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
                 className="w-12 h-12 rounded-full overflow-hidden border border-neutral-800 hover:border-[#ae7aff] transition-colors shrink-0 cursor-pointer"
               >
                 <img 
-                  src={video.avatar} 
-                  alt={video.channelName} 
+                  src={currentVideo.avatar} 
+                  alt={currentVideo.channelName} 
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -248,7 +396,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
                 onClick={handleChannelClick}
                 className="cursor-pointer"
               >
-                <h5 className="font-bold text-white text-base leading-tight hover:text-[#ae7aff] transition-colors">{video.channelName}</h5>
+                <h5 className="font-bold text-white text-base leading-tight hover:text-[#ae7aff] transition-colors">{currentVideo.channelName}</h5>
                 <p className="text-xs text-neutral-400 mt-0.5">Subscribers</p>
               </div>
             </div>
@@ -273,7 +421,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
             <p className={`text-sm text-neutral-300 leading-relaxed font-normal ${
               isDescExpanded ? '' : 'line-clamp-3'
             }`}>
-              {video.description || 'No description available for this video.'}
+              {currentVideo.description || 'No description available for this video.'}
               {!isDescExpanded && (
                 <span className="block mt-2 text-xs font-bold text-[#ae7aff] hover:underline">... Show More</span>
               )}
@@ -336,20 +484,22 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
                         <span className="text-sm font-semibold text-white">
                           {comment.owner?.fullname || comment.owner?.username || 'User'}
                         </span>
-                        <span className="text-xs text-neutral-500">{formatTimeAgo(comment.createdAt)}</span>
+                        <span className="text-xs text-neutral-500">{timeAgo(comment.createdAt)}</span>
                       </div>
                       <p className="text-sm text-neutral-300 leading-relaxed">{comment.content}</p>
-                      <div className="flex items-center gap-3 mt-1">
+                      <div className="flex items-center gap-3 mt-1 text-left">
                         <button 
-                          onClick={() => likeService.toggleCommentLike(comment._id)}
-                          className="text-xs text-neutral-500 hover:text-[#ae7aff] transition-colors flex items-center gap-1"
+                          onClick={() => handleToggleCommentLike(comment._id)}
+                          className={`text-xs hover:text-[#ae7aff] transition-colors flex items-center gap-1 ${
+                            comment.isLiked ? 'text-[#ae7aff]' : 'text-neutral-500'
+                          }`}
                         >
-                          <ThumbsUp size={12} />
+                          <ThumbsUp size={12} fill={comment.isLiked ? 'currentColor' : 'none'} />
                           {comment.likesCount || 0}
                         </button>
                         <button 
                           onClick={() => handleDeleteComment(comment._id)}
-                          className="text-xs text-neutral-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                          className="text-xs text-neutral-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                         >
                           Delete
                         </button>
@@ -374,7 +524,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
                   setIsLiked(false)
                   setIsDisliked(false)
                 }}
-                className="flex gap-x-2 group cursor-pointer border border-transparent hover:border-neutral-800 rounded-lg p-1.5 transition-all duration-150"
+                className="flex gap-x-2 group cursor-pointer border border-transparent hover:border-neutral-800 rounded-lg p-1.5 transition-all duration-150 text-left"
               >
                 {/* Recommendation Thumbnail */}
                 <div className="w-[140px] shrink-0 pt-[22%] relative overflow-hidden rounded bg-neutral-900">

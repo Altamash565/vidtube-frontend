@@ -102,7 +102,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     if (file) {
       try {
         const formData = new FormData()
-        formData.append('coverImage', file)
+        formData.append('cover-image', file)
         const res = await authService.updateCoverImage(formData)
         if (res.data) {
           onSaveChannelDetails({ ...channelDetails, coverImage: res.data.coverImage || '' })

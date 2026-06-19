@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import type { Video } from './VideoCard'
 import type { ChannelDetails } from './SettingsPage'
+import dashboardService from '../services/dashboardService'
+import { mapApiVideoToVideo } from '../types'
 
 export interface DashboardProps {
   channelDetails: ChannelDetails
@@ -20,21 +22,67 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onUploadClick
 }) => {
   const [apiStats, setApiStats] = useState<{ totalViews: number; totalLikes: number; totalSubscribers: number } | null>(null)
+  const [dashboardVideos, setDashboardVideos] = useState<Video[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+
+  const fetchDashboardData = () => {
+    setIsLoading(true)
+    dashboardService.getChannelVideos()
+      .then(res => {
+        const docs = Array.isArray(res.data) ? res.data : []
+        setDashboardVideos(docs.map(mapApiVideoToVideo))
+      })
+      .catch(err => {
+        console.error('Failed to fetch dashboard videos:', err)
+        // Fallback to local filtering
+        setDashboardVideos(
+          videos.filter(
+            video => video.channelName.toLowerCase() === channelDetails.name.toLowerCase()
+          )
+        )
+      })
+      .finally(() => setIsLoading(false))
+  }
 
   useEffect(() => {
-    import('../services/dashboardService').then(mod => {
-      mod.default.getChannelStats()
-        .then(res => {
-          if (res.data) setApiStats(res.data)
-        })
-        .catch(() => { /* fallback to local calc */ })
-    })
-  }, [])
+    fetchDashboardData()
 
-  // Filter videos that belong to the active owner channel
-  const ownerVideos = videos.filter(
-    video => video.channelName.toLowerCase() === channelDetails.name.toLowerCase()
-  )
+    dashboardService.getChannelStats()
+      .then(res => {
+        if (res.data) setApiStats(res.data)
+      })
+      .catch(() => { /* fallback to local calc */ })
+  }, [videos, channelDetails.name])
+
+  const handleTogglePublish = async (id: string) => {
+    // Optimistic local state toggle
+    setDashboardVideos(prev => prev.map(v => 
+      v.id === id ? { ...v, published: !v.published } : v
+    ))
+    try {
+      await onTogglePublish(id)
+    } catch (err) {
+      console.error('Failed to toggle publish:', err)
+      // revert if failed
+      setDashboardVideos(prev => prev.map(v => 
+        v.id === id ? { ...v, published: !v.published } : v
+      ))
+    }
+  }
+
+  const handleDeleteVideo = async (id: string) => {
+    const originalVideos = [...dashboardVideos]
+    // Optimistic delete
+    setDashboardVideos(prev => prev.filter(v => v.id !== id))
+    try {
+      await onDeleteVideo(id)
+    } catch (err) {
+      console.error('Failed to delete video:', err)
+      // revert
+      setDashboardVideos(originalVideos)
+    }
+  }
+
 
   // Use API stats if available, otherwise calculate locally
   let formattedViews: string
@@ -47,7 +95,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     subscribersCount = (apiStats.totalSubscribers || 0).toLocaleString()
   } else {
     // Calculate dynamic stats from local data
-    const totalViewsVal = ownerVideos.reduce((sum, vid) => {
+    const totalViewsVal = dashboardVideos.reduce((sum, vid) => {
       const cleanStr = vid.views.toLowerCase().replace(/,/g, '')
       let num = parseFloat(cleanStr)
       if (cleanStr.includes('k')) {
@@ -62,7 +110,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       ? totalViewsVal.toLocaleString() 
       : '0'
 
-    const totalLikesVal = ownerVideos.reduce((sum, vid) => sum + (vid.likes || 0), 0)
+    const totalLikesVal = dashboardVideos.reduce((sum, vid) => sum + (vid.likes || 0), 0)
     formattedLikes = totalLikesVal > 0 
       ? totalLikesVal.toLocaleString() 
       : '0'
@@ -148,14 +196,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </tr>
           </thead>
           <tbody>
-            {ownerVideos.length === 0 ? (
+            {isLoading ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                  <div className="flex justify-center items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-[#ae7aff] border-t-transparent rounded-full animate-spin" />
+                    <span>Loading owner videos...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : dashboardVideos.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
                   No videos uploaded yet. Click "Upload video" to add your first content.
                 </td>
               </tr>
             ) : (
-              ownerVideos.map(video => {
+              dashboardVideos.map(video => {
                 const isPublished = video.published !== false
                 return (
                   <tr key={video.id} className="group border">
@@ -168,7 +225,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             id={`vid-pub-${video.id}`} 
                             className="peer sr-only" 
                             checked={isPublished}
-                            onChange={() => onTogglePublish(video.id)}
+                            onChange={() => handleTogglePublish(video.id)}
                           />
                           <span className="inline-block h-6 w-full rounded-2xl bg-gray-200 duration-200 after:absolute after:bottom-1 after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-black after:duration-200 peer-checked:bg-[#ae7aff] peer-checked:after:left-7"></span>
                         </label>
@@ -228,7 +285,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <button 
                           onClick={() => {
                             if (window.confirm(`Are you sure you want to delete "${video.title}"?`)) {
-                              onDeleteVideo(video.id)
+                              handleDeleteVideo(video.id)
                             }
                           }}
                           className="h-5 w-5 hover:text-[#ae7aff] cursor-pointer"

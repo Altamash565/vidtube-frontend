@@ -16,6 +16,8 @@ import { EditVideoModal } from './components/EditVideoModal'
 import { PrivacyPolicy } from './components/PrivacyPolicy'
 import { TermsAndConditions } from './components/TermsAndConditions'
 import { useAuth } from './context/AuthContext'
+import { PlaylistsPage } from './components/PlaylistsPage'
+import { SubscribersPage } from './components/SubscribersPage'
 import videoService from './services/videoService'
 import tweetService from './services/tweetService'
 import dashboardService from './services/dashboardService'
@@ -461,6 +463,16 @@ function App() {
               onDeleteVideo={handleDeleteVideo}
               onEditVideo={setEditingVideo}
               onUploadClick={() => setShowUploadModal(true)}
+            />
+          ) : activeTab === 'collections' && isLoggedIn && user ? (
+            <PlaylistsPage 
+              userId={user._id}
+              onSelectVideo={setSelectedVideo}
+            />
+          ) : activeTab === 'subscribers' && isLoggedIn && user ? (
+            <SubscribersPage 
+              userId={user._id}
+              onSelectChannel={setSelectedChannel}
             />
           ) : (
             <VideoEmptyState 

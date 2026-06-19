@@ -5,7 +5,9 @@ import { type Video } from './VideoCard'
 import tweetService from '../services/tweetService'
 import playlistService from '../services/playlistService'
 import subscriptionService from '../services/subscriptionService'
-import { mapApiTweetToTweet, mapApiVideoToVideo } from '../types'
+import authService from '../services/authService'
+import likeService from '../services/likeService'
+import { mapApiTweetToTweet, mapApiVideoToVideo, formatCount } from '../types'
 import type { ApiPlaylist } from '../types'
 
 export interface ChannelPageProps {
@@ -208,24 +210,43 @@ export const MOCK_TWEETS: Tweet[] = [
 ]
 
 export const TweetItem: React.FC<{ tweet: Tweet; channelAvatar: string }> = ({ tweet, channelAvatar }) => {
-  const [likeStatus, setLikeStatus] = useState<'liked' | 'disliked' | null>(null)
+  const [isLiked, setIsLiked] = useState(tweet.isLiked ?? false)
+  const [likesCount, setLikesCount] = useState(tweet.likes || 0)
+  const [isDisliked, setIsDisliked] = useState(false)
 
-  const handleLike = () => {
-    setLikeStatus(prev => prev === 'liked' ? null : 'liked')
+  // Sync props change
+  useEffect(() => {
+    setIsLiked(tweet.isLiked ?? false)
+    setLikesCount(tweet.likes || 0)
+  }, [tweet.id, tweet.isLiked, tweet.likes])
+
+  const handleLike = async () => {
+    try {
+      const res = await likeService.toggleTweetLike(tweet.id)
+      const isLikedNow = (res.data as { isLiked?: boolean })?.isLiked ?? false
+      setIsLiked(isLikedNow)
+      setLikesCount(prev => Math.max(0, prev + (isLikedNow ? 1 : -1)))
+      if (isDisliked) setIsDisliked(false)
+    } catch (err) {
+      console.error('Failed to toggle tweet like:', err)
+      setIsLiked(!isLiked)
+      setLikesCount(prev => prev + (isLiked ? -1 : 1))
+    }
   }
 
   const handleDislike = () => {
-    setLikeStatus(prev => prev === 'disliked' ? null : 'disliked')
+    setIsDisliked(!isDisliked)
+    if (isLiked) {
+      setIsLiked(false)
+      setLikesCount(prev => Math.max(0, prev - 1))
+    }
   }
-
-  const displayLikes = tweet.likes + (likeStatus === 'liked' ? 1 : 0)
-  const displayDislikes = tweet.dislikes + (likeStatus === 'disliked' ? 1 : 0)
 
   return (
     <div className="flex gap-3 border-b border-neutral-800 py-4 last:border-b-transparent">
       <div className="h-14 w-14 shrink-0">
         <img 
-          src={channelAvatar} 
+          src={channelAvatar || 'https://images.pexels.com/photos/3532545/pexels-photo-3532545.jpeg?auto=compress'} 
           alt={tweet.channelName} 
           className="h-full w-full rounded-full object-cover"
         />
@@ -239,13 +260,13 @@ export const TweetItem: React.FC<{ tweet: Tweet; channelAvatar: string }> = ({ t
         <div className="flex gap-4">
           <button 
             onClick={handleLike}
-            className={`inline-flex items-center gap-x-1 outline-none text-sm font-medium transition-colors hover:text-[#ae7aff] ${
-              likeStatus === 'liked' ? 'text-[#ae7aff]' : 'text-neutral-400'
+            className={`inline-flex items-center gap-x-1 outline-none text-sm font-medium transition-colors hover:text-[#ae7aff] cursor-pointer ${
+              isLiked ? 'text-[#ae7aff]' : 'text-neutral-400'
             }`}
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
-              fill={likeStatus === 'liked' ? 'currentColor' : 'none'} 
+              fill={isLiked ? 'currentColor' : 'none'} 
               viewBox="0 0 24 24" 
               strokeWidth="1.5" 
               stroke="currentColor" 
@@ -253,17 +274,17 @@ export const TweetItem: React.FC<{ tweet: Tweet; channelAvatar: string }> = ({ t
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 01-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 10.203 4.167 9.75 5 9.75h1.053c.472 0 .745.556.5.96a8.958 8.958 0 00-1.302 4.665c0 1.194.232 2.333.654 3.375z" />
             </svg>
-            <span>{displayLikes}</span>
+            <span>{likesCount}</span>
           </button>
           <button 
             onClick={handleDislike}
-            className={`inline-flex items-center gap-x-1 outline-none text-sm font-medium transition-colors hover:text-[#ae7aff] ${
-              likeStatus === 'disliked' ? 'text-[#ae7aff]' : 'text-neutral-400'
+            className={`inline-flex items-center gap-x-1 outline-none text-sm font-medium transition-colors hover:text-[#ae7aff] cursor-pointer ${
+              isDisliked ? 'text-[#ae7aff]' : 'text-neutral-400'
             }`}
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
-              fill={likeStatus === 'disliked' ? 'currentColor' : 'none'} 
+              fill={isDisliked ? 'currentColor' : 'none'} 
               viewBox="0 0 24 24" 
               strokeWidth="1.5" 
               stroke="currentColor" 
@@ -271,7 +292,7 @@ export const TweetItem: React.FC<{ tweet: Tweet; channelAvatar: string }> = ({ t
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15h2.25m8.024-9.75c.011.05.028.1.052.148.591 1.2.924 2.55.924 3.977a8.96 8.96 0 01-.999 4.125m.023-8.25c-.076-.365.183-.75.575-.75h.908c.889 0 1.713.518 1.972 1.368.339 1.11.521 2.287.521 3.507 0 1.553-.295 3.036-.831 4.398C20.613 14.547 19.833 15 19 15h-1.053c-.472 0-.745-.556-.5-.96a8.95 8.95 0 00.303-.54m.023-8.25H16.48a4.5 4.5 0 01-1.423-.23l-3.114-1.04a4.5 4.5 0 00-1.423-.23H6.504c-.618 0-1.217.247-1.605.729A11.95 11.95 0 002.25 12c0 .434.023.863.068 1.285C2.427 14.306 3.346 15 4.372 15h3.126c.618 0 .991.724.725 1.282A7.471 7.471 0 007.5 19.5a2.25 2.25 0 002.25 2.25.75.75 0 00.75-.75v-.633c0-.573.11-1.14.322-1.672.304-.76.93-1.33 1.653-1.715a9.04 9.04 0 002.86-2.4c.498-.634 1.226-1.08 2.032-1.08h.384" />
             </svg>
-            <span>{displayDislikes}</span>
+            <span>{isDisliked ? 1 : 0}</span>
           </button>
         </div>
       </div>
@@ -401,7 +422,8 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
   onEditClick,
   onNewVideoClick,
   onAddTweet,
-  userId
+  userId,
+  channelUsername
 }) => {
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [activeSubTab, setActiveSubTab] = useState<'videos' | 'playlist' | 'tweets' | 'subscribed'>('videos')
@@ -413,48 +435,102 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
   const [fetchedPlaylists, setFetchedPlaylists] = useState<ApiPlaylist[]>([])
   const [apiPlaylistVideos, setApiPlaylistVideos] = useState<Video[]>([])
 
+  // Profile data from backend
+  const [profile, setProfile] = useState<{
+    id?: string
+    name: string
+    avatar: string
+    coverImage?: string
+    subscribersCount?: number
+    subscribedToCount?: number
+    isSubscribed?: boolean
+    username?: string
+  } | null>(null)
+
+  // Fetch channel profile when channelUsername changes
+  useEffect(() => {
+    setProfile(null)
+    const targetUsername = channelUsername || (channelHandle ? channelHandle.replace(/^@/, '') : '')
+    if (targetUsername) {
+      authService.getChannelProfile(targetUsername)
+        .then(res => {
+          if (res.data) {
+            setProfile({
+              id: res.data._id,
+              name: res.data.fullname || res.data.username || channelName,
+              avatar: res.data.avatar,
+              coverImage: res.data.coverImage,
+              subscribersCount: res.data.subscribersCount,
+              subscribedToCount: res.data.channelsSubscribedToCount,
+              isSubscribed: res.data.isSubscribed,
+              username: res.data.username
+            })
+            setIsSubscribed(res.data.isSubscribed)
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch channel profile:', err)
+        })
+    }
+  }, [channelUsername, channelHandle, channelName])
+
+  const resolvedChannelId = profile?.id || userId
+  const displayName = profile?.name || channelName
+  const displayAvatar = profile?.avatar || channelAvatar
+  const displayCover = profile?.coverImage || channelCover
+  const displayHandle = profile?.username ? `@${profile.username}` : (channelHandle || `@${channelName.toLowerCase().replace(/[^a-z0-9]/g, '')}`)
+  const displaySubscribers = profile?.subscribersCount !== undefined 
+    ? formatCount(profile.subscribersCount) 
+    : (subscribers || (isSubscribed ? '601k' : '600k'))
+  const displaySubscribedTo = profile?.subscribedToCount !== undefined
+    ? String(profile.subscribedToCount)
+    : (subscribedCount || '220')
+
   // Fetch tweets from API when user switches to tweets tab
   useEffect(() => {
     setSelectedPlaylist(null)
     setActiveSubTab('videos')
     setFetchedTweets([])
     setFetchedPlaylists([])
-  }, [channelName])
+  }, [channelName, channelUsername])
 
   // Fetch tweets from API
   useEffect(() => {
-    if (activeSubTab === 'tweets' && userId) {
-      tweetService.getUserTweets(userId)
+    const targetUserId = resolvedChannelId
+    if (activeSubTab === 'tweets' && targetUserId) {
+      tweetService.getUserTweets(targetUserId)
         .then(res => {
           const apiTweets = Array.isArray(res.data) ? res.data : []
           setFetchedTweets(apiTweets.map(mapApiTweetToTweet))
         })
         .catch(() => setFetchedTweets([]))
     }
-  }, [activeSubTab, userId])
+  }, [activeSubTab, resolvedChannelId])
 
   // Fetch playlists from API
   useEffect(() => {
-    if (activeSubTab === 'playlist' && userId) {
-      playlistService.getUserPlaylists(userId)
+    const targetUserId = resolvedChannelId
+    if (activeSubTab === 'playlist' && targetUserId) {
+      playlistService.getUserPlaylists(targetUserId)
         .then(res => {
           const data = Array.isArray(res.data) ? res.data : []
           setFetchedPlaylists(data)
         })
         .catch(() => setFetchedPlaylists([]))
     }
-  }, [activeSubTab, userId])
+  }, [activeSubTab, resolvedChannelId])
 
   // Fetch subscribed channels from API
   useEffect(() => {
-    if (activeSubTab === 'subscribed' && userId) {
-      subscriptionService.getSubscribedChannels(userId)
+    const targetUserId = resolvedChannelId
+    if (activeSubTab === 'subscribed' && targetUserId) {
+      subscriptionService.getSubscribedChannels(targetUserId)
         .then(res => {
           const data = Array.isArray(res.data) ? res.data : []
           const mapped = data.map((item: unknown) => {
             const obj = item as { _id: string; channel?: { _id: string; username: string; fullname: string; avatar: string }; subscribersCount?: number; isSubscribed?: boolean }
             return {
-              id: obj._id || '',
+              id: obj.channel?._id || obj._id || '',
               name: obj.channel?.fullname || obj.channel?.username || 'Unknown',
               avatar: obj.channel?.avatar || '',
               subscribers: String(obj.subscribersCount || 0),
@@ -465,13 +541,19 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
         })
         .catch(() => setSubscribedChannels([]))
     }
-  }, [activeSubTab, userId])
+  }, [activeSubTab, resolvedChannelId])
 
   const handleSubscribe = async () => {
-    if (userId) {
+    if (resolvedChannelId) {
       try {
-        await subscriptionService.toggleSubscription(userId)
+        await subscriptionService.toggleSubscription(resolvedChannelId)
         setIsSubscribed(!isSubscribed)
+        if (profile) {
+          setProfile(prev => prev ? {
+            ...prev,
+            subscribersCount: (prev.subscribersCount || 0) + (isSubscribed ? -1 : 1)
+          } : null)
+        }
       } catch {
         // fallback
         setIsSubscribed(!isSubscribed)
@@ -500,9 +582,10 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
       onAddTweet?.(newTweetText.trim())
       setNewTweetText('')
       // Re-fetch tweets
-      if (userId) {
+      const targetUserId = resolvedChannelId
+      if (targetUserId) {
         try {
-          const res = await tweetService.getUserTweets(userId)
+          const res = await tweetService.getUserTweets(targetUserId)
           const apiTweets = Array.isArray(res.data) ? res.data : []
           setFetchedTweets(apiTweets.map(mapApiTweetToTweet))
         } catch { /* ignore */ }
@@ -510,17 +593,15 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
     }
   }
 
-  const displayHandle = channelHandle || `@${channelName.toLowerCase().replace(/[^a-z0-9]/g, '')}`
-
   const videosList = videos || MOCK_VIDEOS
   const filteredVideos = videosList.filter(
-    video => video.channelName.toLowerCase() === channelName.toLowerCase()
+    video => video.channelName.toLowerCase() === displayName.toLowerCase()
   )
 
   // Use fetched tweets if available, otherwise fall back to props or mock
   const tweetsList = fetchedTweets.length > 0 ? fetchedTweets : (propTweets || MOCK_TWEETS)
   const filteredTweets = tweetsList.filter(
-    tweet => tweet.channelName.toLowerCase() === channelName.toLowerCase()
+    tweet => tweet.channelName.toLowerCase() === displayName.toLowerCase()
   )
 
   const filteredChannels = subscribedChannels.filter(
@@ -537,10 +618,10 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
         videoCount: p.videos?.length || 0,
         views: '',
         uploadedAt: '',
-        channelName: channelName
+        channelName: displayName
       }))
     : MOCK_PLAYLISTS.filter(
-        playlist => playlist.channelName.toLowerCase() === channelName.toLowerCase()
+        playlist => playlist.channelName.toLowerCase() === displayName.toLowerCase()
       )
 
   // For API playlists, fetch videos when a playlist is selected
@@ -578,7 +659,7 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
         <div className="relative min-h-[150px] w-full pt-[16.28%] bg-neutral-950">
           <div className="absolute inset-0 overflow-hidden">
             <img 
-              src={channelCover || "https://images.pexels.com/photos/1092424/pexels-photo-1092424.jpeg?auto=compress"} 
+              src={displayCover || "https://images.pexels.com/photos/1092424/pexels-photo-1092424.jpeg?auto=compress"} 
               alt="cover-photo"
               className="w-full h-full object-cover opacity-85"
             />
@@ -591,18 +672,18 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
             {/* Avatar */}
             <span className="relative -mt-16 inline-block h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-white bg-neutral-900 shadow-md">
               <img 
-                src={channelAvatar} 
-                alt={channelName} 
+                src={displayAvatar} 
+                alt={displayName} 
                 className="h-full w-full object-cover"
               />
             </span>
 
             {/* Metadata Text */}
-            <div className="mr-auto inline-block">
-              <h1 className="font-bold text-xl text-white">{channelName}</h1>
+            <div className="mr-auto inline-block text-left">
+              <h1 className="font-bold text-xl text-white">{displayName}</h1>
               <p className="text-sm text-neutral-400 mt-0.5">{displayHandle}</p>
               <p className="text-sm text-neutral-400 mt-1">
-                {subscribers || (isSubscribed ? '601k' : '600k')} Subscribers · {subscribedCount || '220'} Subscribed
+                {displaySubscribers} Subscribers · {displaySubscribedTo} Subscribed
               </p>
             </div>
 
@@ -812,16 +893,16 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
                       {/* Creator details */}
                       <div className="mt-6 flex items-center gap-x-3 border-t border-neutral-900 pt-5">
                         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-neutral-850">
-                          <img src={channelAvatar} alt={channelName} className="h-full w-full object-cover"/>
+                          <img src={displayAvatar} alt={displayName} className="h-full w-full object-cover"/>
                         </div>
                         <div className="w-full text-left">
                           <h6 
-                            onClick={() => onSelectChannel?.({ name: channelName, avatar: channelAvatar })}
+                            onClick={() => onSelectChannel?.({ name: displayName, avatar: displayAvatar })}
                             className="font-bold text-white hover:text-[#ae7aff] transition-colors cursor-pointer"
                           >
-                            {channelName}
+                            {displayName}
                           </h6>
-                          <p className="text-xs text-neutral-400 mt-0.5">757K Subscribers</p>
+                          <p className="text-xs text-neutral-400 mt-0.5">{displaySubscribers} Subscribers</p>
                         </div>
                       </div>
                     </div>
@@ -998,7 +1079,7 @@ export const ChannelPage: React.FC<ChannelPageProps> = ({
                 ) : (
                   <div className="py-4">
                     {filteredTweets.map(tweet => (
-                      <TweetItem key={tweet.id} tweet={tweet} channelAvatar={channelAvatar} />
+                      <TweetItem key={tweet.id} tweet={tweet} channelAvatar={displayAvatar} />
                     ))}
                   </div>
                 )}
