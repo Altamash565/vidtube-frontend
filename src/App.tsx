@@ -106,25 +106,12 @@ function App() {
   // ---- Callbacks ----
 
   // Callback to add a new video (via upload modal)
-  const handleAddVideo = async (videoData: Omit<Video, 'id' | 'views' | 'uploadedAt' | 'avatar' | 'channelName' | 'videoFile'> & { videoFile?: File; thumbnailFile?: File }) => {
-    // If we have actual file data, upload to API
-    if (videoData.videoFile && videoData.thumbnailFile) {
-      try {
-        const formData = new FormData()
-        formData.append('videoFile', videoData.videoFile)
-        formData.append('thumbnail', videoData.thumbnailFile)
-        formData.append('title', videoData.title)
-        formData.append('description', videoData.description || '')
-        await videoService.publishVideo(formData)
-        await fetchVideos() // Refresh video list
-      } catch (err) {
-        console.error('Upload failed:', err)
-      }
-    } else {
-      // Fallback: refresh from API
-      await fetchVideos()
-    }
-    setShowUploadModal(false)
+  const handleAddVideo = async () => {
+    await fetchVideos() // Refresh video list (upload already happened in modal)
+    setActiveTab('content') // Redirect to "My Content" page (uploaded videos page)
+    setSelectedVideo(null)
+    setSelectedChannel(null)
+    setShowUploadModal(false) // Close the modal
   }
 
   // Callback to add a new tweet

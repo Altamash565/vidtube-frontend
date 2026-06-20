@@ -88,6 +88,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUploadSucce
       setError('Please select or drag a video file first')
       return
     }
+    if (!actualThumbnailFile) {
+      setError('Thumbnail is required')
+      return
+    }
     if (!title.trim()) {
       setError('Title is required')
       return
@@ -119,9 +123,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUploadSucce
           setIsCompleted(true)
           setUploadProgress(100)
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.error('Upload failed:', err)
-          setError('Upload failed. Please try again.')
+          const axiosErr = err as { response?: { data?: { message?: string } } }
+          const errMsg = axiosErr.response?.data?.message || 'Upload failed. Please try again.'
+          setError(errMsg)
           setUploadStep('fill')
         })
     }
@@ -143,7 +149,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUploadSucce
   // If we are in the uploading process
   if (uploadStep === 'uploading') {
     return (
-      <div className="absolute inset-x-0 top-0 z-[60] flex h-[calc(100vh-66px)] items-center justify-center bg-black/50 px-4 pb-[86px] pt-4 sm:h-[calc(100vh-82px)] sm:px-14 sm:py-8">
+      <div className="fixed inset-0 z-[60] bg-black/60 px-4 pb-[86px] pt-4 sm:px-14 sm:py-8 flex items-center justify-center backdrop-blur-sm text-white">
         <div className="w-full max-w-lg overflow-auto rounded-lg border border-gray-700 bg-[#121212] p-4 text-white shadow-2xl">
           {/* Header */}
           <div className="mb-4 flex items-start justify-between">
