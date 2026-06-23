@@ -44,7 +44,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
   const [isLoadingComments, setIsLoadingComments] = useState(false)
 
   // Get recommendations (excluding current video)
-  const recommendations = allVideos.filter(v => v.id !== video.id)
+  const recommendations = allVideos.filter((v: Video) => v.id !== video.id)
 
   // Fetch/Reset video details and check watch history trigger on mount/video change
   useEffect(() => {
@@ -94,9 +94,9 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
     try {
       await likeService.toggleVideoLike(video.id)
       if (isLiked) {
-        setLikeCount(prev => prev - 1)
+        setLikeCount((prev: number) => prev - 1)
       } else {
-        setLikeCount(prev => prev + 1)
+        setLikeCount((prev: number) => prev + 1)
       }
       setIsLiked(!isLiked)
       if (isDisliked) setIsDisliked(false)
@@ -111,7 +111,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
     setIsDisliked(!isDisliked)
     if (isLiked) {
       setIsLiked(false)
-      setLikeCount(prev => prev - 1)
+      setLikeCount((prev: number) => prev - 1)
     }
   }
 
@@ -135,7 +135,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
     try {
       const res = await commentService.addComment(video.id, newComment.trim())
       if (res.data) {
-        setComments(prev => [res.data, ...prev])
+        setComments((prev: ApiComment[]) => [res.data, ...prev])
       }
       setNewComment('')
     } catch (err) {
@@ -146,7 +146,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
   const handleDeleteComment = async (commentId: string) => {
     try {
       await commentService.deleteComment(commentId)
-      setComments(prev => prev.filter(c => c._id !== commentId))
+      setComments((prev: ApiComment[]) => prev.filter((c: ApiComment) => c._id !== commentId))
     } catch (err) {
       console.error('Failed to delete comment:', err)
     }
@@ -157,7 +157,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
       const res = await likeService.toggleCommentLike(commentId)
       const isLikedNow = (res.data as { isLiked?: boolean })?.isLiked ?? false
       
-      setComments(prev => prev.map(c => {
+      setComments((prev: ApiComment[]) => prev.map((c: ApiComment) => {
         if (c._id === commentId) {
           const wasLiked = c.isLiked
           const newLikesCount = c.likesCount !== undefined
@@ -226,7 +226,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
   const currentVideo = videoDetails || video
 
   return (
-    <div className="w-full flex-grow overflow-y-auto bg-[#121212] px-4 py-4 lg:px-8">
+    <div className="w-full grow overflow-y-auto bg-[#121212] px-4 py-4 lg:px-8">
       {/* Back Button */}
       <button 
         onClick={onBack}
@@ -267,7 +267,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
             
             {/* Player Controls Overlay */}
             {!currentVideo.videoFile && (
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-between">
+              <div className="absolute bottom-0 inset-x-0 bg-linear-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-between">
                 <span className="text-xs text-neutral-300 font-mono">0:00 / {currentVideo.duration}</span>
                 <div className="w-24 h-1 bg-neutral-600 rounded overflow-hidden">
                   <div className="w-1/3 h-full bg-[#ae7aff]" />
@@ -300,7 +300,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
                   <ThumbsUp size={16} fill={isLiked ? 'currentColor' : 'none'} />
                   <span>{likeCount > 0 ? likeCount.toLocaleString() : '0'}</span>
                 </button>
-                <div className="w-[1px] h-5 bg-neutral-700" />
+                <div className="w-px h-5 bg-neutral-700" />
                 <button 
                   onClick={handleDislike}
                   className={`flex items-center px-4 py-2 hover:bg-neutral-700/60 rounded-r-full text-sm font-semibold transition-colors ${
@@ -527,7 +527,7 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
                 className="flex gap-x-2 group cursor-pointer border border-transparent hover:border-neutral-800 rounded-lg p-1.5 transition-all duration-150 text-left"
               >
                 {/* Recommendation Thumbnail */}
-                <div className="w-[140px] shrink-0 pt-[22%] relative overflow-hidden rounded bg-neutral-900">
+                <div className="w-35 shrink-0 pt-[22%] relative overflow-hidden rounded bg-neutral-900">
                   <div className="absolute inset-0">
                     <img 
                       src={rec.thumbnail} 
