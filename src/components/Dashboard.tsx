@@ -96,14 +96,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
   } else {
     // Calculate dynamic stats from local data
     const totalViewsVal = dashboardVideos.reduce((sum, vid) => {
-      const cleanStr = vid.views.toLowerCase().replace(/,/g, '')
-      let num = parseFloat(cleanStr)
-      if (cleanStr.includes('k')) {
-        num = num * 1000
-      } else if (cleanStr.includes('m')) {
-        num = num * 1000000
+      // Safely parse views count
+      let num = 0
+      if (typeof vid.views === 'string') {
+        const cleanStr = vid.views.toLowerCase().replace(/,/g, '').trim()
+        const parsed = parseFloat(cleanStr)
+        if (!isNaN(parsed)) {
+          if (cleanStr.includes('k')) {
+            num = parsed * 1000
+          } else if (cleanStr.includes('m')) {
+            num = parsed * 1000000
+          } else {
+            num = parsed
+          }
+        }
+      } else if (typeof vid.views === 'number') {
+        num = vid.views
       }
-      return sum + (isNaN(num) ? 0 : num)
+      return sum + num
     }, 0)
 
     formattedViews = totalViewsVal > 0 
@@ -187,10 +197,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <table className="w-full min-w-[1200px] border-collapse border text-white">
           <thead>
             <tr>
-              <th className="border-collapse border-b p-4">Status</th>
+              <th className="border-collapse border-b p-4">Title</th>
               <th className="border-collapse border-b p-4">Status</th>
               <th className="border-collapse border-b p-4">Uploaded</th>
-              <th className="border-collapse border-b p-4">Rating</th>
+              <th className="border-collapse border-b p-4">Views</th>
               <th className="border-collapse border-b p-4">Date uploaded</th>
               <th className="border-collapse border-b p-4"></th>
             </tr>

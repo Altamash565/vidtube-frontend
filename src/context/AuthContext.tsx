@@ -61,12 +61,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(async () => {
     try {
       await authService.logout()
-    } catch {
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      setUser(null)
+    } catch (err) {
+      console.error('Logout error:', err)
       // Even if API call fails, clear local state
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      setUser(null)
     }
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    setUser(null)
   }, [])
 
   const refreshUser = useCallback(async () => {

@@ -107,11 +107,20 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
     }
   }
 
-  const handleDislike = () => {
-    setIsDisliked(!isDisliked)
-    if (isLiked) {
-      setIsLiked(false)
-      setLikeCount((prev: number) => prev - 1)
+  const handleDislike = async () => {
+    try {
+      // Currently API doesn't support dislike toggle separately
+      // This is a placeholder for future implementation
+      // For now, just update local state
+      setIsDisliked(!isDisliked)
+      if (isLiked) {
+        setIsLiked(false)
+        setLikeCount((prev: number) => prev - 1)
+      }
+    } catch (err) {
+      console.error('Failed to toggle dislike:', err)
+      // Revert on error
+      setIsDisliked(!isDisliked)
     }
   }
 
@@ -120,9 +129,11 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
     if (currentVideo.ownerId) {
       try {
         await subscriptionService.toggleSubscription(currentVideo.ownerId)
-      } catch { /* ignore */ }
+        setIsSubscribed(!isSubscribed)
+      } catch (err) {
+        console.error('Failed to toggle subscription:', err)
+      }
     }
-    setIsSubscribed(!isSubscribed)
   }
 
   const handleChannelClick = () => {
@@ -131,15 +142,22 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
   }
 
   const handleAddComment = async () => {
-    if (!newComment.trim()) return
+    if (!newComment.trim()) {
+      return
+    }
+    if (!isLoggedIn) {
+      alert('Please log in to comment on videos.')
+      return
+    }
     try {
       const res = await commentService.addComment(video.id, newComment.trim())
       if (res.data) {
         setComments((prev: ApiComment[]) => [res.data, ...prev])
+        setNewComment('')
       }
-      setNewComment('')
     } catch (err) {
       console.error('Failed to add comment:', err)
+      alert('Failed to add comment. Please try again.')
     }
   }
 
@@ -155,7 +173,10 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
   const handleToggleCommentLike = async (commentId: string) => {
     try {
       const res = await likeService.toggleCommentLike(commentId)
-      const isLikedNow = (res.data as { isLiked?: boolean })?.isLiked ?? false
+      const resData = res.data as unknown
+      const isLikedNow = (typeof resData === 'object' && resData !== null && 'isLiked' in resData) 
+        ? (resData as { isLiked?: boolean }).isLiked ?? false 
+        : false
       
       setComments((prev: ApiComment[]) => prev.map((c: ApiComment) => {
         if (c._id === commentId) {
@@ -182,16 +203,18 @@ export const VideoDetail: React.FC<VideoDetailProps> = ({
       return
     }
     const nextState = !showPlaylistDropdown
-    setShowPlaylistDropdown(nextState)
     if (nextState && user?._id) {
       try {
         const res = await playlistService.getUserPlaylists(user._id)
         if (res.data) {
           setUserPlaylists(Array.isArray(res.data) ? res.data : [])
         }
+        setShowPlaylistDropdown(true)
       } catch (err) {
         console.error('Failed to load user playlists:', err)
       }
+    } else {
+      setShowPlaylistDropdown(nextState)
     }
   }
 

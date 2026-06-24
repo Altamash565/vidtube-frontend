@@ -191,12 +191,23 @@ function App() {
       const likedData = Array.isArray(res.data) ? res.data : []
       const likedVids = likedData
         .map((item: unknown) => {
-          const obj = item as { video?: ApiVideo }
-          return obj.video ? mapApiVideoToVideo(obj.video) : null
+          if (typeof item === 'object' && item !== null && 'video' in item) {
+            const obj = item as { video?: unknown }
+            if (obj.video) {
+              try {
+                return mapApiVideoToVideo(obj.video as any)
+              } catch (e) {
+                console.warn('Failed to map video:', e)
+                return null
+              }
+            }
+          }
+          return null
         })
-        .filter(Boolean) as Video[]
+        .filter((v): v is Video => v !== null)
       setVideos(likedVids)
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch liked videos:', err)
       setVideos([])
     }
   }, [])
