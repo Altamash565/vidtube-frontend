@@ -1,7 +1,7 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosError } from 'axios';
 
 const api = axios.create({
-  baseURL: (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:8000/api/v1',
+  baseURL: (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4000/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -68,7 +68,7 @@ api.interceptors.response.use(
         }
 
         const { data } = await axios.post(
-          `${(import.meta.env.VITE_API_URL as string) || 'http://localhost:8000/api/v1'}/users/refresh-token`,
+          `${(import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4000/api/v1'}/users/refresh-token`,
           { refreshToken },
           { withCredentials: true }
         );
