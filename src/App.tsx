@@ -499,6 +499,7 @@ function App() {
           onRegisterSuccess={() => {
             setShowRegister(false)
             fetchVideos()
+            setActiveTab('home')
           }}
         />
       )}

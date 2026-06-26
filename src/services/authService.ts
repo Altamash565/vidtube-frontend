@@ -3,10 +3,18 @@ import type { ApiResponse, ApiUser, LoginResponse, RefreshTokenResponse, Channel
 
 export const authService = {
   /** Register a new user (multipart/form-data) */
-  register: async (formData: FormData): Promise<ApiResponse<ApiUser>> => {
+  register: async (formData: FormData): Promise<ApiResponse<ApiUser | LoginResponse>> => {
     const { data } = await api.post('/users/register', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
+
+    if (data?.data?.accessToken) {
+      localStorage.setItem('accessToken', data.data.accessToken)
+    }
+    if (data?.data?.refreshToken) {
+      localStorage.setItem('refreshToken', data.data.refreshToken)
+    }
+
     return data
   },
 

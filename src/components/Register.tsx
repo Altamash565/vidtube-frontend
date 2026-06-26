@@ -53,13 +53,17 @@ export const Register: React.FC<RegisterProps> = ({ onClose, onRegisterSuccess }
       formData.append('avatar', avatarFile)
 
       await register(formData)
-      
-      // Auto-login after successful registration
-      await login({ username: username.trim().toLowerCase(), password })
+
+      try {
+        await login({ username: username.trim().toLowerCase(), password })
+      } catch (loginErr) {
+        console.warn('Auto-login after registration failed, but the account was created.', loginErr)
+      }
+
       onRegisterSuccess(email.trim())
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } }
-      setError(axiosErr.response?.data?.message || 'Registration failed. Please try again.')
+      const axiosErr = err as { response?: { data?: { message?: string } }; message?: string }
+      setError(axiosErr.response?.data?.message || axiosErr.message || 'Registration failed. Please try again.')
     } finally {
       setIsSubmitting(false)
     }

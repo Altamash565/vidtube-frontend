@@ -54,8 +54,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [])
 
   const register = useCallback(async (formData: FormData) => {
-    await authService.register(formData)
-    // After successful registration, don't auto-login - let user login explicitly
+    const res = await authService.register(formData)
+    const payload = res?.data as { user?: ApiUser } | undefined
+
+    if (payload?.user) {
+      setUser(payload.user)
+    }
   }, [])
 
   const logout = useCallback(async () => {
